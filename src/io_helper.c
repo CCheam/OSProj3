@@ -27,7 +27,8 @@ int open_client_fd(char *hostname, int port) {
     int client_fd;
     struct hostent *hp;
     struct sockaddr_in server_addr;
-    
+    #define h_addr h_addr_list[0] /* for backward compatibility */
+
     if ((client_fd = socket(AF_INET, SOCK_STREAM, 0)) < 0)
         return -1; 
     

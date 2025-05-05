@@ -1,7 +1,8 @@
 //
 //	Main webserver code file (with main() fuction)
 //
-
+#include <unistd.h>
+#include <getopt.h>
 #include <stdio.h>
 #include "request.h"
 #include "io_helper.h"

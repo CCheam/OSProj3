@@ -2,7 +2,7 @@
 #include "request.h"
 
 #define MAXBUF (8192)
-#
+
 void request_error(int fd, char *cause, char *errnum, char *shortmsg, char *longmsg) {
     char buf[MAXBUF], body[MAXBUF];
     

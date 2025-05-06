@@ -8,7 +8,13 @@ int num_threads = DEFAULT_THREADS;
 int buffer_max_size = DEFAULT_BUFFER_SIZE;
 int scheduling_algo = DEFAULT_SCHED_ALGO;	
 //lock to manage
-pthread_mutex_t handy;
+int request_buffer[MAXBUF];
+int buffer_count = 0;
+int buffer_front = 0;
+int buffer_rear = 0;
+pthread_mutex_t buffer_lock = PTHREAD_MUTEX_INITIALIZER;
+pthread_cond_t buffer_not_empty = PTHREAD_COND_INITIALIZER;
+pthread_cond_t buffer_not_full = PTHREAD_COND_INITIALIZER;
 
 //	TODO: add code to create and manage the shared global buffer of requests
 //	HINT: You will need synchronization primitives.
@@ -140,6 +146,56 @@ void* thread_request_serve_static(void* arg)
 {
     // TODO: write code to actualy respond to HTTP requests
     // Pull from global buffer of requests
+    while (1) {
+        int fd;
+
+        pthread_mutex_lock(&buffer_lock);
+        while (buffer_count == 0) {
+            pthread_cond_wait(&buffer_not_empty, &buffer_lock);
+        }
+
+        // Remove a request from the buffer
+        fd = request_buffer[buffer_front];
+        buffer_front = (buffer_front + 1) % MAXBUF;
+        buffer_count--;
+
+        pthread_cond_signal(&buffer_not_full);
+        pthread_mutex_unlock(&buffer_lock);
+
+        // Process the request
+        struct stat sbuf;
+        char filename[MAXBUF], cgiargs[MAXBUF];
+        int is_static;
+
+        // You'd need to parse again or redesign to pass more info,
+        // but for now, use fd with the original logic
+        request_read_headers(fd);
+        // For simplicity, parse and serve as static
+        // You can re-factor to pass full context if needed
+        char buf[MAXBUF], method[MAXBUF], uri[MAXBUF], version[MAXBUF];
+        readline_or_die(fd, buf, MAXBUF);
+        sscanf(buf, "%s %s %s", method, uri, version);
+
+        is_static = request_parse_uri(uri, filename, cgiargs);
+        if (stat(filename, &sbuf) < 0) {
+            request_error(fd, filename, "404", "Not found", "server could not find this file");
+            continue;
+        }
+
+        if (is_static) {
+            if (!(S_ISREG(sbuf.st_mode)) || !(S_IRUSR & sbuf.st_mode)) {
+                request_error(fd, filename, "403", "Forbidden", "server could not read this file");
+                continue;
+            }
+
+            request_serve_static(fd, filename, sbuf.st_size);
+        } else {
+            request_error(fd, filename, "501", "Not Implemented", "server does not serve dynamic content request");
+        }
+
+        close_or_die(fd);
+    }
+    return NULL;
 }
 
 //
